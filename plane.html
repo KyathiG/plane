@@ -1,0 +1,213 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Flight Takeoff Readiness Checker</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#0ea5a1;--ok:#16a34a;--warn:#f59e0b;--bad:#ef4444;color-scheme:dark}
+    body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin:0;min-height:100vh;background:linear-gradient(180deg,#071022 0%, #071b2a 100%);color:#e6eef6;display:flex;align-items:center;justify-content:center;padding:24px}
+    .container{width:100%;max-width:980px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:20px;box-shadow:0 10px 30px rgba(2,6,23,0.6)}
+    header{display:flex;align-items:center;gap:16px}
+    header h1{margin:0;font-size:1.25rem}
+    .grid{display:grid;grid-template-columns:1fr 380px;gap:18px;margin-top:18px}
+    .card{background:var(--card);border-radius:10px;padding:16px}
+    label{display:block;font-size:0.85rem;margin-bottom:6px;color:#cfe8ea}
+    select,input[type='number'],textarea{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+    .row{display:flex;gap:12px;align-items:center}
+    .small{font-size:0.85rem;color:#9fb8bb}
+    .checkboxes{display:flex;flex-direction:column;gap:8px}
+    button{background:var(--accent);border:none;color:#042024;padding:10px 14px;border-radius:8px;font-weight:600;cursor:pointer}
+    .result{display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;padding:18px;text-align:center}
+    .status{font-size:1.4rem;padding:12px 20px;border-radius:999px;font-weight:700}
+    .reasons{background:rgba(255,255,255,0.02);padding:12px;border-radius:8px;text-align:left;width:100%}
+    .dot{width:12px;height:12px;border-radius:50%;display:inline-block;margin-right:8px}
+    footer{margin-top:14px;font-size:0.8rem;color:#9fb8bb}
+    @media (max-width:880px){.grid{grid-template-columns:1fr;}.result{order:2}}
+  </style>
+</head>
+<body>
+  <div class="container" role="main">
+    <header>
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M2 21s6-3 10-3 10 3 10 3-6-9-10-9S2 21 2 21z" fill="#0ea5a1" opacity="0.12"></path><path d="M12 3c.7 0 1.4.1 2 .3L17 6l-2 3-.9 1.6A6 6 0 0 0 12 3z" fill="#0ea5a1"></path></svg>
+      <div>
+        <h1>Flight Takeoff Readiness Checker</h1>
+        <div class="small">Enter the latest pre-flight data — the page will evaluate if the flight is <strong>Ready</strong>, needs <strong>Delay</strong>, or is <strong>Not Ready</strong>.</div>
+      </div>
+    </header><div class="grid">
+  <!-- Left: Inputs -->
+  <section class="card" aria-labelledby="inputHeading">
+    <h2 id="inputHeading" style="margin-top:0">Pre-flight Inputs</h2>
+
+    <label for="flightId">Flight ID</label>
+    <input id="flightId" placeholder="e.g. AI-203" />
+
+    <label for="weather">Weather Severity</label>
+    <select id="weather" aria-describedby="weatherHelp">
+      <option value="0">Clear / VFR (Good)</option>
+      <option value="1">Cloudy / Light Showers (Moderate)</option>
+      <option value="2">Heavy Rain / Gusts (Risky)</option>
+      <option value="3">Severe Weather / Thunderstorm (Unsafe)</option>
+    </select>
+    <div id="weatherHelp" class="small">Select the latest observed weather near the departure airport.</div>
+
+    <div style="height:10px"></div>
+
+    <label>Aircraft Health Checks (tick for OK)</label>
+    <div class="checkboxes" role="group" aria-label="Aircraft sensors">
+      <label><input type="checkbox" id="engine" checked /> Engine Systems OK</label>
+      <label><input type="checkbox" id="navigation" checked /> Navigation & Avionics OK</label>
+      <label><input type="checkbox" id="hydraulics" checked /> Hydraulics & Controls OK</label>
+      <label><input type="checkbox" id="fuel" checked /> Fuel Systems OK</label>
+    </div>
+
+    <div style="height:10px"></div>
+
+    <label for="crewHours">Pilot Duty Hours (last 24h)</label>
+    <input id="crewHours" type="number" min="0" max="24" value="8" />
+    <div class="small">Regulatory limits vary — use lower values to be conservative.</div>
+
+    <div style="height:12px"></div>
+
+    <label>Runway & Ground Status</label>
+    <div class="checkboxes" role="group" aria-label="Runway checks">
+      <label><input type="checkbox" id="runwayClear" checked /> Runway clear</label>
+      <label><input type="checkbox" id="groundServices" checked /> Ground services confirmed</label>
+    </div>
+
+    <div style="height:12px"></div>
+
+    <label for="notes">Notes (optional)</label>
+    <textarea id="notes" rows="3" placeholder="e.g. NOTAM about temporary lighting, potential bird activity..."></textarea>
+
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button id="evaluate">Evaluate Readiness</button>
+      <button id="reset" type="button" style="background:transparent;border:1px solid rgba(255,255,255,0.06);color:inherit">Reset</button>
+    </div>
+
+    <footer>Tip: This is a demo evaluator for presentations. Final operational systems require certified avionics and ATC coordination.</footer>
+  </section>
+
+  <!-- Right: Results -->
+  <aside class="card result" aria-labelledby="resultHeading">
+    <h2 id="resultHeading" style="margin:0">Evaluation Result</h2>
+    <div id="statusBadge" class="status" style="margin-top:12px;background:rgba(0,0,0,0.25)">Awaiting input</div>
+
+    <div class="reasons" id="reasons" aria-live="polite">
+      <strong>Reasons & details</strong>
+      <ul id="reasonList" style="margin:8px 0 0 16px;padding:0"></ul>
+    </div>
+
+    <div style="width:100%;margin-top:12px;text-align:left">
+      <strong>Score breakdown</strong>
+      <div class="small" style="margin-top:6px">Higher score = safer for takeoff</div>
+      <div id="breakdown" class="small" style="margin-top:8px"></div>
+    </div>
+
+  </aside>
+</div>
+
+  </div>  <script>
+    // Simple readiness logic for demo/presentation purposes only.
+    function evaluate() {
+      const flightId = document.getElementById('flightId').value || 'Unknown';
+      const weather = Number(document.getElementById('weather').value);
+      const engine = document.getElementById('engine').checked;
+      const navigation = document.getElementById('navigation').checked;
+      const hydraulics = document.getElementById('hydraulics').checked;
+      const fuel = document.getElementById('fuel').checked;
+      const crewHours = Number(document.getElementById('crewHours').value) || 0;
+      const runwayClear = document.getElementById('runwayClear').checked;
+      const groundServices = document.getElementById('groundServices').checked;
+      const notes = document.getElementById('notes').value.trim();
+
+      let score = 100; // start from 100
+      const reasons = [];
+
+      // Weather penalties
+      if (weather === 1) { score -= 10; reasons.push('Light weather impacts: monitor closely.'); }
+      if (weather === 2) { score -= 30; reasons.push('Heavy rain/gusts detected — risk to takeoff performance.'); }
+      if (weather === 3) { score -= 70; reasons.push('Severe weather — not safe for takeoff.'); }
+
+      // Aircraft health
+      if (!engine) { score -= 40; reasons.push('Engine system flagged — ground maintenance required.'); }
+      if (!navigation) { score -= 25; reasons.push('Navigation/avionics issues — cannot ensure accurate flight path.'); }
+      if (!hydraulics) { score -= 30; reasons.push('Hydraulics/controls problem — unsafe to operate.'); }
+      if (!fuel) { score -= 50; reasons.push('Fuel system not OK — critical.'); }
+
+      // Crew readiness: conservative rule — if >12 hours in last 24h, heavy fatigue
+      if (crewHours >= 14) { score -= 40; reasons.push('Pilot duty hours high — potential fatigue.'); }
+      else if (crewHours >= 10) { score -= 15; reasons.push('Pilot duty hours elevated — consider additional checks.'); }
+
+      // Ground and runway
+      if (!runwayClear) { score -= 50; reasons.push('Runway not clear — immediate stop for takeoff.'); }
+      if (!groundServices) { score -= 20; reasons.push('Ground services not confirmed.'); }
+
+      // Notes: if contains keywords, add attention
+      if (notes.toLowerCase().includes('bird')) { score -= 20; reasons.push('Reported bird activity — risk for takeoff/climb.'); }
+      if (notes.toLowerCase().includes('notam')) { reasons.push('NOTAM present — consult ATC / dispatch.'); }
+
+      // Clamp score
+      if (score < 0) score = 0;
+      if (score > 100) score = 100;
+
+      // Determine status
+      const statusBadge = document.getElementById('statusBadge');
+      const reasonList = document.getElementById('reasonList');
+      const breakdown = document.getElementById('breakdown');
+
+      // Clear previous
+      reasonList.innerHTML = '';
+
+      // Add reasons (if none, positive message)
+      if (reasons.length === 0) {
+        reasonList.innerHTML = '<li>All checked — no immediate issues detected.</li>';
+      } else {
+        reasons.forEach(r => {
+          const li = document.createElement('li'); li.textContent = r; reasonList.appendChild(li);
+        });
+      }
+
+      // Show breakdown
+      breakdown.innerHTML = `Flight: <strong>${flightId}</strong> — Score: <strong>${score}</strong>/100`;
+
+      // Badge style & text logic
+      if (score >= 75) {
+        statusBadge.textContent = 'READY for takeoff';
+        statusBadge.style.background = 'linear-gradient(90deg, rgba(22,163,74,0.12), rgba(14,165,161,0.06))';
+        statusBadge.style.color = 'var(--ok)';
+      } else if (score >= 45) {
+        statusBadge.textContent = 'DELAY RECOMMENDED (investigate)';
+        statusBadge.style.background = 'linear-gradient(90deg, rgba(245,158,11,0.08), rgba(255,255,255,0.02))';
+        statusBadge.style.color = 'var(--warn)';
+      } else {
+        statusBadge.textContent = 'NOT READY — HOLD/MAINTENANCE REQUIRED';
+        statusBadge.style.background = 'linear-gradient(90deg, rgba(239,68,68,0.06), rgba(255,255,255,0.01))';
+        statusBadge.style.color = 'var(--bad)';
+      }
+
+      // Accessibility announce
+      statusBadge.setAttribute('aria-live','polite');
+    }
+
+    document.getElementById('evaluate').addEventListener('click', evaluate);
+    document.getElementById('reset').addEventListener('click', function(){
+      document.querySelector('form')?.reset();
+      // Reset inputs manually
+      document.getElementById('flightId').value = '';
+      document.getElementById('weather').value = '0';
+      ['engine','navigation','hydraulics','fuel','runwayClear','groundServices'].forEach(id=>document.getElementById(id).checked = true);
+      document.getElementById('crewHours').value = 8;
+      document.getElementById('notes').value = '';
+      document.getElementById('statusBadge').textContent = 'Awaiting input';
+      document.getElementById('statusBadge').style.background = 'rgba(0,0,0,0.25)';
+      document.getElementById('statusBadge').style.color = '';
+      document.getElementById('reasonList').innerHTML = '';
+      document.getElementById('breakdown').innerHTML = '';
+    });
+
+    // Optional: run initial evaluate to show baseline
+    // evaluate();
+  </script></body>
+</html>
